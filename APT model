@@ -1,0 +1,57 @@
+"""
+Investigacion de Factores: Aplicados a modelos de regression normalizada
+"""
+# Comunmente investigadores aplican el modelo OLS de regresion, 
+# para estimar la importancia de los factores (factor loadings)
+# en los retornos individuales de los activos o acciones.
+
+#sirve para estimar portafolios tanto con renta fija y renta variable. (interest rate / equity risks)
+
+#Para estimar dichos rendimientos de las acciones podemos utilizar Macrofactores y Microfactores.
+
+#Macrofactors: pueden ser usados para asset allocation, asset liability modeling 
+    #inflacion, tasa de interes, crecimiento pib, tipo de cambio, precio del petroleo, prima de riesgo de mercado
+    #diferencia entre tasas de interes de corto y largo plazo
+
+#Risk factors (se usan microfactores para determinar factores de riesgo de los portafolio)
+#Microfactores:
+    #tamaño de la empresa , valor de la empresa, margen de utilidad, book to market, volatildiad especifica
+    #liquidez de la accion, crecimiento de utilidades, rentabilidad, endeudamiento, crecimiento de utilidades.
+
+"""
+° Motivacionde los modelos de Factores °
+
+-Reducir la complejidad del modelado sobre movimiento de los  precios de activos
+#Un gran porcentaje de portafolios de equity bien diversificados puede ser explicado con solo 3 factores.
+#Reduce completamente el modelo de los retornos en un modelo lineal de facatores elegido por el usuario
+
+-Explicar los retornos de los activos hibridos
+# los hedge funds y real state son los mejores modelados con combinacion de factores.
+
+-Pronosticar el retorno esperado futuro de los activos
+#Dado un retorno esperado de los factores, podemos mapearlos en los retornos esperados de los activos
+"""
+
+#Tipos de modelos de factores: (buscan explicar los rendimientos de los activos a partir de varias variables)
+    
+    #Fama-FRENCH Modelo de 3 factores 
+    #Capm modelo de 1 solo factor el indice de mercado
+    
+    #the excess market return value - value factor (value stocks - growth stocks and size | small - large) 
+    
+
+"""
+° Harvard usa 5 factores para determinar los rendimientos °
+
+  global equity | long-term US govement bonds | high yield bonds | inflation hedging | currency hedging.
+  
+  global equity , govement bonds and high yield bonds se consideran para el asset pricing
+  -se relacionan con ganancias, la tasa libre de riesgo y la prima de riesgo
+  
+  -inlation heding and currency hedging estan dados por la importancia de las inversiones segun Harvard
+"""
+
+
+#Regresion OLS con penalizaciones para reducir los factor loadings o reducir la importancia que se encuentra
+
+#9:02
