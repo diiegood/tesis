@@ -1,0 +1,160 @@
+#instalar la libreria
+#%pip install factor-analyzer
+
+#importacion de librerias 
+
+import csv
+import numpy as np 
+import pandas as pd 
+
+
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
+
+from factor_analyzer.factor_analyzer import calculate_bartlett_sphericity  #modelos para verificar los factores
+from factor_analyzer.factor_analyzer import calculate_kmo
+
+from scipy.optimize import minimize                       #modulos usados pra resolver problemas de optimizacion
+from sklearn.linear_model import LinearRegression 
+
+#Se cargan los datos 
+file_name = r"C:\Users\creep\.spyder-py3\datos para trabajar\lab 1 portafolio optimo\ReturnsData_Daily.csv"
+ #nombre del archivo en formato excel
+df = pd.read_csv(file_name, low_memory= False, index_col=0) #selecciona la primera columna de fecha como indice 
+df.index = pd.to_datetime(df.index) #se crea un indice como un objeto de fecha de tiempo
+df
+
+print("There are totoal of", len(df.columns), "stocks included in this datafile")
+print("The stocks included in thits datafile are:")
+for name in df.columns: print(name)
+
+df.describe().T
+
+###############################################################################
+
+#Para graficar los rendimientos diarios de los activos
+n = len(df.columns)
+col = 4 #se especifican el numero de columnas 
+row = int(np.ceil(n/col)) #especifica el numero de filas 
+height = row *3 #se especifica altura de la grafica
+widght = col * 4 #se especifica el ancho de la grafica
+
+ax = df.plot(subplots = True, layout =(row,col), figsize=(widght, height),
+             sharey=True, sharex=True,
+             title = "Rendimientos diarios de las acciones versus la fecha")
+
+#para agregar etiquetas en la grafica
+for i in range (col):
+    ax[0,i].xaxis.set_tick_params(which="both", top=True, labeltop = True, labelrotation =40)
+    
+
+fig = ax[0,0].get_figure()
+fig.tight_layout()
+fig.subplots_adjust(top=0.93) #agregar indirectamente el ajuste de la localizacion del titulo
+
+plt.show()
+
+
+###############################################################################
+
+#para filtrar un activo
+df = df.drop('BABA',axis = 1)  #quita baba y regresa el data frame normal
+df =df.dropna() #quita las filas que contengan NA o valores perdidos
+df
+
+###############################################################################
+#Cambiar la frecuencia de los datos
+
+df_semanal = (df+1).resample("W").prod()-1
+df_semanal = df_semanal.drop(df_semanal.index[[0]]) #se eliminan manualmente los retornos de los datos de la primera semana
+df_semanal = df_semanal.drop(df_semanal.index[-1])  #se eliminan manualmente los retornos de los datos de la ultima semana
+df_semanal
+
+
+SP500 = df_semanal[["SP500"]]
+SP500
+
+data = df_semanal.drop("SP500", axis=1)
+data
+
+#Para cargar los datos de los Treasury Bills o bonos del tesoro estadounidenses 
+
+#Se cargan los datos 
+file_name = r"C:\Users\creep\.spyder-py3\datos para trabajar\lab 1 portafolio optimo\WTB3MS.csv"
+
+ #nombre del archivo en formato excel
+df = pd.read_csv(file_name)
+
+df["DATE"] = pd.to_datetime(df["DATE"]) #se selecciona la columna fecha como un datatime object
+df["WTB3MS"] = pd.to_numeric(df["WTB3MS"], errors="coerce") #se hace la columna re rendimiento como numerica
+
+RET_data = pd.DataFrame(columns=["RET"], index=df.DATE) #se crea un nuevo dataframe
+RET_data ["RET"] = (df["WTB3MS"].values/100+1) ** (1/52) - 1 #se edita la unidad de los retornos de la base de datos
+
+RET_data_semanal = (RET_data["RET"]+1).resample("W").prod()-1 #convierte los datos en la misma frecuencia semanal
+TBill = pd.DataFrame(columns=["T-Bill"], index=RET_data_semanal.index)
+TBill ["T-Bill"] = RET_data_semanal
+
+ind = (TBill.index >= df_semanal.index[[0]][0]) * (TBill.index <= df_semanal.index[[-1]][0])
+TBill = TBill[ind] #mantiene el mismo comienzo y termina como los datos de los rendimientos de las acciones
+TBill
+
+###############################################################################
+#Para hacer una serie de tiempo
+
+start_date = "2010-12-19"
+end_date = "2020-06-28"
+
+ind = (data.index >= start_date) * (data.index <= end_date)
+
+data = data[ind]
+data
+
+SP500 = SP500[ind]
+SP500
+
+TBill = TBill[ind]
+TBill
+
+ 
+###############################################################################
+#Evaluacion del performance de las acciones
+
+#evaluar, rendimiento anual, volatilidad sobre rendimiento, sharpe ratio y max drawdown
+
+Freq = 52
+
+def ann_ret(x):
+    return (x+1)**Freq-1
+
+def ann_std(x):
+    return x*np.sqrt(Freq)
+
+def ann_geo_mean(x):
+    n = len(x)
+    return np.exp(np.sum(np.log(1+x)) * Freq / n ) - 1
+
+def ann_sr(x, rf):
+    n = len (x)
+    ret_expected = np.sum(x-rf)/n
+    ret_avg = np.sum(x)/n
+    std_dev = np.sqrt(np.sum((x-ret_avg)**2)/n)
+    annu_ret_expected = (ret_expected + 1) ** Freq-1
+    annu_std_dev = std_dev * np.sqrt(Freq)
+    return annu_ret_expected/annu_std_dev
+
+def mdd(x):
+    wealth = (x+1).cumprod()
+    cummax = wealth.cummax()
+    drawdown = wealth/cummax -1
+    return drawdown.min()
+
+
+#Salida de los datos con informacion estadistica de los activos
+n_dec = 2
+SumStat = pd.DataFrame(index=data.columns)
+SumStat["Geo Mean (anual returns % )"] = np.round(data.apply(ann_geo_mean)*100, n_dec)
+SumStat["Volatility(anual, %)"] = np.round(ann_std(data.std())*100, n_dec)
+SumStat["Sharpe Ratio (anual)"] = np.round(data.apply(ann_sr, rf=TBill["T-Bill"]), n_dec)
+SumStat["Max Drawdown %"] = np.round(data.apply(mdd)*100, n_dec)
+SumStat
