@@ -6,7 +6,7 @@
 import csv
 import numpy as np 
 import pandas as pd 
-
+from IPython.display import display
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
@@ -37,15 +37,23 @@ n = len(df.columns)
 col = 4 #se especifican el numero de columnas 
 row = int(np.ceil(n/col)) #especifica el numero de filas 
 height = row *3 #se especifica altura de la grafica
-widght = col * 4 #se especifica el ancho de la grafica
+width = col * 4 #se especifica el ancho de la grafica
 
-ax = df.plot(subplots = True, layout =(row,col), figsize=(widght, height),
-             sharey=True, sharex=True,
-             title = "Rendimientos diarios de las acciones versus la fecha")
+ax = df.plot(
+    subplots=True,
+    layout=(row, col),
+    figsize=(width, height),
+    sharey=True,
+    sharex=True,
+    title="Rendimientos diarios de las acciones versus la fecha"
+)
 
 #para agregar etiquetas en la grafica
 for i in range (col):
-    ax[0,i].xaxis.set_tick_params(which="both", top=True, labeltop = True, labelrotation =40)
+    ax[0,i].xaxis.set_tick_params(which="both", 
+                                  top=True, 
+                                  labeltop = True,
+                                  labelrotation =40)
     
 
 fig = ax[0,0].get_figure()
@@ -162,6 +170,7 @@ SumStat
 ###############################################################################
 #Para encontrar los valores alpha y betas 
 
+#para crear la regresion lineal
 def LR(X,y):
     reg = LinearRegression().fit(X.reshape(-1,1), y.reshape(-1,1))
     return reg.coef_,reg.intercept_
@@ -224,7 +233,6 @@ una matriz identidad.
 
 """
 
-
 chi_square_value, p_value = calculate_bartlett_sphericity(data)
 print("En el test de Bartlett, el p-value es", p_value)
 
@@ -253,7 +261,7 @@ menos de 0.6 se considera indacuado
 
 kmo_all, kmo_model = calculate_kmo(data)
 print("En el KOM test, the overall KMO es", kmo_model)
-if (kmo_model>0.6):
+if (kmo_model > 0.6):
     print("El valor de KMO es mayor que 0.6, por lo que se puede adecuar a la actuacion del factor de analysis con los datos")
     
 
@@ -293,7 +301,6 @@ def MarkPortOpt (r, silent = False):
     
     def constraint1(w):
         return np.sum(w)-1.0  #restriccion de presupuesto
-    
     def constraint2(w):
         return 1.0 - np.sum(w)  #restriccion de presupuesto
     def constraint3(w):
@@ -323,7 +330,7 @@ def MarkPortOpt (r, silent = False):
     return solution
 
 #Econtrar la solucion dado un objetivo especifico de rendimiento r
-solution = MarkPortOpt(r = 0.001, silent= False)
+solution = MarkPortOpt(r = 0.001, silent = False)
 
 
 ###############################################################################
@@ -333,8 +340,7 @@ numR= 14 #numero de rendimientos objetivo
 
 #se selecciona un rendimiento de r-bar
 r_bar = np.array([i for i in range(numR-3)]) * 0.0003 + 0.002 
-r_bar = np.append(r_bar, np.array([0.00505, 0.0051, 0.00515])) 
-
+r_bar = np.append(r_bar, np.array([0.00505, 0.0051,0.00515])) 
 
 
 #se puede cambiar el numero de retornos objetivo actualmente especificados
@@ -359,7 +365,7 @@ for i in range(numR):
     
     
     if (not solution["success"]): #verifica si el optimizador realizo exitosamente
-        print("la solucion sera analizada")
+        print("la solucion sera analizada y se buscara otra opcion")
         
     else: #solo si la r-bar ha hecho la optimizacion exitosa
         print(solution["message"])
@@ -382,9 +388,295 @@ print("el numero de puntos de frontera eficiente guardados es", num_rbar)
 
 DF_Alloc_R = pd.DataFrame(alloc_r)
 DF_Alloc_R.index = data_train.columns
-DF_Alloc_R.columns = [str(round(ann_ret(r)*100,1))+ "%" for i in r_bar]
+DF_Alloc_R.columns = [str(round(ann_ret(r)*100,1))+ "%" for r in r_bar]
 DF_Alloc_R = DF_Alloc_R.loc[:, (DF_Alloc_R != 0).any(axis=0)]
 
 print("Optimal Allocation en porcentaje especificada por cada objetivo de rendimiento")
 resultado = np.round(DF_Alloc_R*100,1)
 resultado
+
+
+###############################################################################
+""" Grafica de la frontera eficiente """
+
+plt.rcParams["figure.figsize"]=(11,6)
+plt.plot(ann_std(port_vol), ann_ret(port_return), 'ro--', label='frontera eficeinte')
+plt.xlabel("volatilidad anualizada")
+plt.ylabel("rendimiento anualizado")
+plt.grid(True, linestyle=  "--")
+plt.legend()
+
+
+plt.title("Frontera eficiente")
+plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+plt.gca().xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+plt.show()
+
+
+
+###############################################################################
+
+#Resolucion del problema de optimizacion con el sharpe ratio 
+
+#para calcular el sharpe ratio anualizado
+def AnnSR (w, data = data_train, rf = TBill_train["T-Bill"].mean()):
+    excess_ret = data @ w - rf
+    AnnSR = ann_ret(excess_ret.mean())/ann_std(PVol(w))
+    return AnnSR
+
+    
+#Para encontrar la solucion optima del portafolio que maximize el sharpe ratio
+def MaxSR(data = data_train, rf = TBill_train["T-Bill"].mean(), silent = False):
+    
+    #Funcion objetiva
+    def SR(w):
+        excess_ret = data @ w -rf
+        SR = (excess_ret.mean()) / (PVol(w))
+        return -SR
+        
+    n = len(data.columns)
+    
+    
+#Para los bonos
+    bnds = tuple((0,1) for i in range (n))
+    
+    #restricciones 
+    
+    def constraint1 (w):
+        
+        return np.sum(w) - 1.0 #restriccion de presupuesto
+    cons = {"type": "eq", "fun": constraint1}
+
+    w0 = np.array(np.ones(n))
+
+    solution = minimize(SR, w0, method="SLSQP", bounds = bnds, constraints=cons)
+    
+    if(not silent):
+        print("La solucion al problema del maximo ratio sharpe es")
+        print(solution)
+        print("")
+    elif ( not solution["success"]):
+        print("este optimizador no ha sido exitoso")
+
+    return solution 
+
+#para encontrar el portafolio optimo que maximiza el sharpe ratio
+solution = MaxSR()
+w_SR = solution ["x"]
+
+#calcular la volatilidad y el rendim(iento esperado del portafolio optimo 
+opt_vol = PVol(solution["x"])
+opt_return = EReturn(solution["x"])
+sr = AnnSR(solution["x"])
+
+#mostrar los rendimientos anualizados, volatilidad , sharpe ratio 
+print("el retorno anualizado es de", ann_ret(opt_return))
+print("La volatilidad anualizada para portafolio optimo es de", ann_std(opt_vol))
+print("El sharpe ratio anualizado para el portafolio optimo es de", sr)
+print()
+
+DF_Alloc_R["maxSR"]= w_SR
+print("allocation optima en porcentaje especificada por cada rendimeinto objetivo")
+allocation = np.round(DF_Alloc_R*100,2)
+allocation
+
+
+plt.rcParams["figure.figsize"] = (11,6)
+plt.plot(ann_std(port_vol), ann_ret(port_return), "ro--", label="frontera eficiente")
+plt.plot(ann_std(opt_vol), ann_ret(opt_return), "g*", markersize=15, label="Portafolio optimo")
+plt.xlabel("volatilidad anualizada")
+plt.ylabel("rendimiento anualizado")
+plt.grid(True, linestyle="--")
+plt.legend()
+plt.title("Frontera eficiente con portafolio optimo")
+plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+plt.gca().xaxis.set_major_formatter(mtick.PercentFormatter(1.0))   
+plt.show()    
+
+
+###############################################################################
+
+"Como el riesgo puede cambiar la tasa libre de riesgo involucrada en el portafolio"
+
+###############################################################################
+
+data_train_with_rf = data_train.copy()
+data_train_with_rf = data_train_with_rf.join(TBill_train)
+
+data_train_with_rf_mean = data_train_with_rf.mean()
+data_train_with_rf_cov_mat = data_train_with_rf.cov()
+
+
+def EReturn_with_rf(w):
+    EReturn = w @ data_train_with_rf_mean
+    return EReturn
+    
+def PVol_with_rf(w):
+    pvar = w @ data_train_with_rf_cov_mat @ w
+    return np.sqrt(pvar)
+
+
+def MarkPortOpt_with_rf (r, silent = False):
+    
+    #Restricciones
+    def constraint1(w):
+        return np.sum(w) - 1.0  #restriccion de presupuesto
+    def constraint2(w):
+        return 1.0 - np.sum(w)  #restriccion de presupuesto
+    def constraint3(w):
+        return w [:-1]    #restriccion no negativa
+    def constraint4(w):
+        diff = EReturn_with_rf(w) - r
+        return diff  #regresa constraint
+    
+    con1 = {"type": "ineq", "fun" : constraint1 }
+    con2 = {"type": "ineq", "fun" : constraint2 }
+    con3 = {"type": "ineq", "fun" : constraint3 }
+    con4 = {"type": "ineq", "fun" : constraint4 }
+    cons = ([con1, con2, con3, con4])
+    
+    w0 = np.ones(len(data_train_with_rf.columns))
+    
+    solution = minimize(PVol_with_rf, w0, method="SLSQP", constraints = cons)
+    
+    if(not silent):
+        print("La solucion al problema de markowitz con la tasa es", round(r*100,3), "%")
+        print(solution)
+        print("")
+    elif(not solution["success"]):
+        print("No se ha logrado optimizar exitosamente")
+    
+    return solution
+
+
+port_vol_with_rf = []
+port_return_with_rf = []
+
+for i in range(numR):
+    r = r_bar[i]
+    print("Para el caso de r barra", round(r*100,3), "%")
+    solution = MarkPortOpt_with_rf(r, silent = True)
+    
+    if(not solution["success"]):
+        print("la solucion es")
+    else:
+        print(solution["message"])
+        port_vol_with_rf.append(solution["fun"])
+        port_return_with_rf.append(EReturn_with_rf(solution["x"]))
+    print("")
+    
+port_vol_with_rf = np.asarray(port_vol_with_rf)
+port_return_with_rf = np.asarray(port_return_with_rf)
+
+num_rbar = len(port_return_with_rf)
+print("El numero de puntos de frontera eficiente es", num_rbar)
+    
+###############################################################################
+
+#para graficar la frontera eficiente con la linea de mercado de capitales
+plt.rcParams["figure.figsize"] = (11,6)
+plt.plot(ann_std(port_vol), ann_ret(port_return), "ro--", label = "Frontera eficiente") 
+plt.plot(ann_std(port_vol_with_rf), ann_ret(port_return_with_rf), "bx--", label = "Frontera eficiente con la tasa libre de riesgo")
+plt.plot(ann_std(opt_vol), ann_ret(opt_return), "g*", markersize = 15, label = "Portafolio Optimo")
+plt.xlabel("Volatilidad anualizada")
+plt.ylabel("Rendimeinto anualizado")
+plt.grid(True, linestyle = "--")
+plt.legend()
+plt.title("Frontera eficiente con el portafolio Optimo")
+plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+plt.gca().xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+plt.show()        
+    
+"""Reduccion del riesgo combinandolo con el maximo punto sharpe y la tasa libre de riesgo"""
+
+#portafolio 1 stats
+w_port1 = np.append(0.9 * w_SR, 0.1) #calcula el sharpe ratio con el 90% sharpe y 10% tasa libre de riesgo
+risk_port1 = np.sqrt(w_port1 @ data_train_with_rf_cov_mat @ w_port1) #calcula el riesgo del portafolio
+
+print("El riesgo del portafolio nuevo es de", ann_std(risk_port1))
+print("El riesgo de portafolio anualizado por unidad conforme al sharpe ratio es", ann_std(PVol(w_SR)))
+
+#portfolio 2 stats
+w_port2 = np.append(1.2 * w_SR, -0.2)
+risk_port2 = np.sqrt(w_port2@ data_train_with_rf_cov_mat @w_port2)
+
+print("El riesgo del portafolio 2 anualizado es", ann_std(risk_port2))
+print("El riesgo de portafolio anualizado por cada maximo de sharpe ratio es", ann_std(PVol(w_SR)))
+    
+    
+###############################################################################
+
+#Conducting Back Test
+#Especifica la fecha de comienzo y fin para el back test
+BT_startdate = str(data.index[0].date())
+BT_enddate = str(data.index[-1].date())
+
+data_BT = data[BT_startdate:BT_enddate].copy()
+SP500_BT = SP500[BT_startdate:BT_enddate].copy()
+TBill_BT = TBill[BT_startdate:BT_enddate].copy()
+
+#buy and hold strategy
+def portRet_BH(w): 
+    n = data_BT.shape[0]
+    PR = np.zeros(n) 
+    X = w * 1 #initial wealth assume to be 1
+    for i in range(n):
+        W = (1+data_BT.iloc[i]) @ X #wealth after each period
+        PR[i] = (W - np.sum(X))/np.sum(X) #calculate and record portfolio return for that period
+        X = (1+data_BT.iloc[i]) * X #how much of the wealth is invested in each asset
+    return PR
+        
+#Funcion para mostrar los resultados del back test
+def DisplaySummary_BT(PR, n_dec = 2):
+    col_names = PR.columns
+    
+    # Compute and display summary statistics for each portfolio
+    print('Summary statistic of various allocations for the back test ')
+    PR_mean = PR.mean()
+    PR_std = PR.std()
+    BT = pd.DataFrame(index = col_names)
+    BT['Geo Mean(Annu,%)'] = np.round( PR.apply(ann_geo_mean) *100, n_dec)
+    BT['Std(Annu,%)'] = np.round( ann_std(PR.std()) *100, n_dec)
+    BT['Sharpe Ratio (Annu)'] = np.round( PR.apply(ann_sr, rf=TBill_BT['T-Bill']), n_dec)
+    BT['Max Drawdown(%)'] = np.round(PR.apply(mdd)*100, n_dec)
+    display(BT)
+    
+    return PR_mean,PR_std
+
+
+n_stocks = len(data.columns)
+w_EQ = np.array(np.ones(n_stocks))/n_stocks
+DF_Alloc_R['Equal'] = w_EQ
+
+
+col_names = DF_Alloc_R.columns
+PR_BH = pd.DataFrame(index = data_BT.index, columns = col_names)
+for i in range(len(col_names)):
+    w = DF_Alloc_R.iloc[:,i].values
+    PR_BH[col_names[i]] = portRet_BH(w)  
+    
+    
+print("Usando la estrategia de Hold and Buy")
+PR_BH_mean,PR_BH_std = DisplaySummary_BT(PR_BH)
+
+###############################################################################
+#Ultima grafica  / exposicion de frontera eficiente y marcando grandes portafolios
+
+plt.rcParams["figure.figsize"] = (11,6)
+num_rbar = np.sum(PR_BH.columns.str.contains("%", case=False))
+plt.plot(ann_std(PR_BH_std[:num_rbar]), ann_ret(PR_BH_mean[:num_rbar]), "ro--", label="Frontera eficiente")
+plt.plot(ann_std(PR_BH_std["maxSR"]), ann_ret(PR_BH_mean["maxSR"]), "g*", markersize=15, label="Max SR" )
+plt.plot(ann_std(PR_BH_std["Equal"]), ann_ret(PR_BH_mean["Equal"]), "bs", markersize=10, label="Equal Weight" )
+plt.plot(ann_std(SP500_BT.std()), ann_ret(SP500_BT.mean()), "md", markersize=10, label="SP500" )
+
+
+plt.xlabel=("Volatolidad Anualizada")
+plt.ylabel=("Rendimeinto Anualizado")
+plt.grid(True, linestyle="--")
+plt.legend(bbox_to_anchor=(1,1), loc="upper left")
+plt.title("Portafolio Media Varianza, con estrategia buy and hold")
+plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+plt.gca().xaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+plt.show()
+    
+
