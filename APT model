@@ -54,4 +54,577 @@ Investigacion de Factores: Aplicados a modelos de regression normalizada
 
 #Regresion OLS con penalizaciones para reducir los factor loadings o reducir la importancia que se encuentra
 
-#9:02
+"""
+#Factores a analizar al modelo 
+
+Wordl Equities Return
+10 Year US Treasury
+High Yield
+Inflation Protection
+Currency Protection
+
+Variable dependiente:  SP500 Index Returns
+
+"""
+
+#Data set check (bajar los datos del sp500 y graficar)
+
+ """
+ TESIS: Antecedente histórico – Crisis Financiera Puntocom
+ Análisis de portafolio internacional
+ """
+
+import yfinance as yf
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Activo
+ticker = "^GSPC"  # S&P 500
+
+# Periodo de análisis
+start_date = "2010-01-01"
+end_date = "2026-12-31"
+
+# Descarga de datos de Yahoo Finance
+data = yf.download(
+    ticker,
+    start=start_date,
+    end=end_date,
+    interval="1d",
+    auto_adjust=False
+)
+
+# Obtención del precio de cierre
+close_prices = data["Close"].dropna()
+close_prices.index.name = "Fecha"
+
+# Cálculo de retornos logarítmicos
+log_returns = np.log(close_prices / close_prices.shift(1)).dropna()
+
+# Retorno acumulado
+cumulative_returns = np.exp(log_returns.cumsum())
+
+# Gráfica
+plt.figure(figsize=(14, 7))
+
+plt.plot(
+    cumulative_returns.index,
+    cumulative_returns,
+    label=ticker
+)
+
+plt.title(
+    "Serie de tiempo – S&P 500 (2010–2026)",
+    fontsize=14
+)
+
+plt.xlabel("Fecha")
+plt.ylabel("Crecimiento relativo")
+plt.legend(loc="upper left")
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+
+#trabajo con el dataset  
+pd.options.display.float_format = "{:,.3f}".format    #esto configura el display de los datos a 3 decimales
+all_data.sort_values("SP&500 Total Return").head(3)
+
+
+
+#Calcular la regresion con la paqueteria scikit-learn
+options = fm.create_options()
+options["name_of_reg"] = "sikit-learn OLS"
+fm.linear_regression(all_data, "SP500 Total Return", config.factorName, options)
+
+#Lectura de datos de la regresion.
+
+"""
+El intercepto de la regresion es un valor que representa el valor estimado de la variable
+dependiente cuando todas las variables explicadas son iguales a cero.
+Los efectos marignales de cada variable se representan a sus coeficientes los cuales estan asociados
+a la variable explicativa, indica cuanto cambian en promedio, conforme a un incremento unitario 
+"""
+
+#Libreria Scikit-learn 
+
+#es una libreria usada para analisis de datos y machine learning algorithms 
+
+
+#funcion para crear un modelo lineal de factores
+def linear_regression(data, dependentVar, factorNames, options):
+    """
+    linear regression takes in a dataset and returns the factor loadings using least squares regression
+    there are some imputs that we need to consider:
+        
+        data: pandas df, data matrix, (should constain the date column and all of the factor names columns)
+        dependentVar: string, name of dependent variable
+        factor Names: list of elements shoult be strings, names of dependient variables
+        options: dicctionary, should constain at least two elements, timeperiod, and date
+            timeperiod: string, if == all, means use entire dataframe, otherwise filter the df on this value
+            date: name of datecol
+            returnModel:bolean, if true, returns model
+            
+            
+    Outputs:
+        reg: regression object from scikitlearn
+        also prints what was desired 
+        
+    """
+
+    #fist filter down to the time period
+    if(options['timeperiod'] == 'all'):
+        newData = data.copy()
+    else:
+        newData = data.copy()
+        newData = newData.query(options['timeperiod'])
+        
+        
+      #perform the linear regression  / codigo importante para crear la regresion que incluya intercepto
+     linReg = LinearRegression(fit_intercept = True)
+     linReg.fit(newData[factorNames], newData[dependentVar]) #factor names variables independientes / dependent Var variable dependiente
+     
+     
+    if (options['printLoadings'] == True):
+        #Now print the results
+        print_timeperiod(newData, dependentVar, options)
+        #Now print the factor loadings
+        display_factor_loadings(linReg.intercept, linReg.coef_, factorNames, options)
+
+    if(options['returnmodel']):
+        return linReg        
+        
+
+#Problemas de la regresion
+
+# 1) hay incertidumbre en las cargas de los factores debido a que pueden estar altamente correlacionados
+# 2) asume que las cargas de los factores son constantes a lo largo del tiempo
+
+#verificacion de la 1a desventaja
+#en las siguientes lineas de codiga hacemos pruebas para verificar el modelo primero con un correlograma
+
+#para calcular la matriz de correlaciones de la la matriz de datos
+all_data[config.factorName].corr()
+
+
+#verificacion de la 2da desventaja
+#las cargas no son cosntantes a lo largo del tiempo.
+
+#primera regresion se calcula con los datos normales, y se filtran los datos a los meses donde
+#los retornos del sp500 son mayores a cero y se corre una regresion en solo esos datos (sp500 datos con ganancias)
+options = fm.create_options()
+normal_data = all_data[all_data["SP500 Total Return"] > 0].copy()
+options["name_of_reg"]= "OLS Normal"
+options["return_model"] = False
+fm.linear_regression(normal_data, "SP500 Total Return", config.factorName, options)
+"""
+en este caso se encontro un intercepto de 0.007 osea que por cada 7% que sube el sp500 desde 1995
+suben un 0.913% y los treasuries de 10 años suben un 0.201 al igual que el currency protection 
+con 0.388% mientras que por otro lado el high yield no es tan significativo con un  0.025%  
+al igual que la protecion de  la inflacion con un -0.003%
+"""
+
+#en la segunda regresion se hace lo mismo pero se cambian la base de datos a los datos con crash o crisis, y se
+#filtran los datos solo en los meses donde los rendimeintos del sp500 era igual o menor a cero (sp500 datos con perdidas)
+options = fm.create_options()
+normal_data = all_data[all_data["SP500 Total Return"] > 0].copy()
+options["name_of_reg"]= "OLS Crash"
+options["return_model"] = False
+fm.linear_regression(crash_data, "SP500 Total Return", config.factorName, options)
+
+"""
+en esta segunda regresion podemos ver que el intercepto es 0.009 negativo por lo que por cada 9% que baja el sp500
+en comparacion el world equities sube un 0.822% y los treasuries a 10 años suben 0.065% por otro lado los menos
+significantes son el high yield que baja un 0.004%, el inflation protection que sube un 0.159% 
+y el currency protection que sube un 0.229 aunque es mas significante que los dos mencionadso previamente
+"""
+
+#Conforme a lo anterior podemos ver que el factor de world equities es mucho menor en periodos de crisis que en
+# periodos normales de la economia.
+
+#el inflaction protection es mas significativo en periodos de crisis siendo mucho mayor 
+#currency protection en ambos es significativo pero es mas significativo en periodos normales 
+#US 10 year treasury es 5 veces mas significativo en peridos normales que en crisis.
+
+
+#Baselyne OLS Model
+#se definen dos bases de datos uno para entrenamiento y el otro para testeo
+#los datos de entrenamiento estan desde marzo de 1997 hasta diciembre de 2012
+#los datos de testeo estan determinados desde diciembre del 2012 en adelante
+
+train = all_data[(all_data["Date"] <= "2012-12-01") & (all_data["Date"] >= "1997-03-01")].copy()
+test = all_data[all_data["Date"] > "2012-12-01"].copy()
+
+options = fm.create_options()
+options["name:of:reg"] = "OLS full data"
+options["return_model"] = True
+ols_model_train = fm.linear_regression(train, "SP500 Total Return", config.factorName, options)
+
+#Se vuelve hacer un modelo OLS pero con los datos de entrenamiento 
+
+
+###############################################################################
+###############################################################################
+###############################################################################
+
+            """ Tecnicas modernas de machine learning """
+
+
+#Regresion con penalizacion Lasso.
+"""
+La regresion lasso penaliza el tamaño de los coeficientes pero las variables pueden tener
+escalas y varianzas diferentes. Por eso es importante estandarizarlas antes de aplicar la
+penalizacion
+"""
+
+#el coeficiente grande no quiere decir que sea un factor mas importante sino esta determinado
+# en la magnitud de la escala con la que se mide esa variable
+
+#no se deben penalizar arbitrariamente los factores con pequeñas escalas o viceversa,
+#  para que la seleccion de  variables no dependa injustamente de las unidades de medicion.
+
+options = fm.create_options_lasso()
+options["lambda_hat"] = .00001
+options["print_loadings"] = True
+options["name_of_reg"] = "LASSO Regression with a small lambda"
+fm.lasso_regression(train, "SP500 Total Return", config.factorName, options)
+
+#Lectura de Datos
+
+"""
+Se tienen dos cargas de factores en cero:  High yield y Inflation Protection (ya no estan incluidos en el modelo)
+intercepto es cero
+wordl equities 0.990
+10 year us treasuries 0.063
+currency protection 0.308
+"""
+
+#Ahora si se tiene un gran valor alpha normal o alfa estimado
+#se le cambia el valor de alfa con 2 ceros y tiene una magnitud mayor
+
+options = fm.create_options_lasso()
+options["lambda_hat"] = .001  #input alpha value
+options["print_loadings"] = True
+options["name_of_reg"] = "LASSO Regression with a large lambda"
+fm.lasso_regression(train, "SP500 Total Return", config.factorName, options)
+
+"""
+se tiene un intercepto de 0.003
+world equities factor 0.551 (siendo el unico factor significativo)
+
+Conforme a lo anterior se observa que se tienen ahora mas cargas de factores con valor cero
+como lo son; 10-year us treasurie, inflation protection, high yield, currency protection
+
+"""
+
+# Pero al final lo realmente importante cuantos factores realmente deberia tener el modelo o que
+# variables realmente son significativas para estimar el comportamientod de los rendimientos del sp500
+
+
+"""
+Segun la forma en la determinamos el valor de lambda en sentido general es a traves del cross-validation o
+validacion cruzada.
+"""
+
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+##############################################################################
+
+              """  Cross Validation /  Validacion cruzada """
+              
+options = fm.create_options_cv_lasso()
+options["name_of_reg"] = "CV Lasso"
+options["max_lambda_hat"] = .001 #especifica el valor maximo de alpha testeado por cross validation
+options["return_model"] = True
+options["n_folds"] = 5 #number of folds (grupos de para validar)
+lasso_model_train = fm.cross_validated_lasso_regression(train, "SP500 Total Return", config.factorName, options)
+
+#Descripcion de los datos
+"""
+mejor lambda = 1.666795754742
+intercepto = 0.000
+world equities  0.977
+10 year us trearusire 0.036
+high yield 0.000
+inflation protection -0.000
+currency protection 0.272
+"""
+
+#el modelo final nos indica que se deberian ignorar tanto el fatcto de high yield como el de inflation protection
+
+
+###############################################################################
+                             """ Lasso Code """
+
+def cross_validated_lasso_regression (data, dependentVar, factorName, options):
+    """
+    La validacion cruzada para la regression lasso toma en un dataset y regresa las cargas del factor usando la
+    regresion lasso y la cross validation para la mejor eleccion del lambda.
+    
+    Inputs:
+        data: pandas df, data matrix, deberia contener la columna de datos y todos los nombres de la carga de los factores
+        dependentVar: string, nombre de la variable dependiente
+        factorNames: lista, elementos que deberian ser strings, nombres de las variables independientes 
+        options:diccionario, debereia contener al menos 2 elementos, periodo de tiempo y fecha
+        timeperiod: string, if = all, significa el uso entero de dataframe, fuktri dek df in este valor
+        date: nombre de la columna de fecha
+        returnsModel: boleano, if true, return model
+        printLoadings:bolean, if true, print los coeficentes
+        maxLambda: float, valor maximo de lambda permitido
+        nLambdas: int, numero de valores landa permitidos
+        randomState: integer, selecciona una semilla random
+        nFolds: numero de folds (grupos)
+    
+    Outputs:
+        reg: regresion con objeto 
+        
+    """
+    #test del tiempo de periodo
+    if(options("time_period") == "all"):
+        newData = data.copy()
+    else:
+        newData = data.copy()
+        newData = new.Data.query(options["time_period"])
+        
+#para la validacion cruzada / se definen el numero de lambdas que se van a usar
+    alphas = np.logspace(-12, np.log(options["max_lambda_hat"]), base = np.exp(1), num = options["n_lambda_hat"])
+    #alpahas = np.linspace(1e-12, alphaMax, options("nAlphas"))
+    if(options["random_state"] == "none"):
+        lassoTest = Lasso(fit_intercept = True)
+    else:
+        lassoTest = Lasso(random_state = options["random_state"], fit_intercept =True)
+    tuned_parameters = [{"alpha" : alphas}]
+    
+    clf = GridSearchCV(lassoTest, tuned_parameters, cv=options["n_folds"], refit =True)
+    clf.fit(newData[factorNames], newData[dependtVar])
+    lassoBest = clf.best_estimator_
+    
+    alphaBest = clf.best_params_["alpha"]        
+
+    if (options["print_loadings"] == True):
+        #para ver las graficas o los resultados
+        print_timeperiod(newData, dependentVar, options)
+        print("Best_lambda_hat =" + str(alphaBest))
+        #para ver las cargas de los factores
+        display_factor_loadings(lassoBest.intercept_, lassoBest.coef_, factorNames, options)
+        
+        
+    if(options["return_model"]):
+        return lassoBest
+    
+###############################################################################
+                          """ Elastic Net  """
+#es la combinacion de lasso y ridge
+    
+options = fm.create_options_cv_elastic_net()
+options["nameOfReg"] = "CV Elastic Net"
+options["maxAplha"] = .01
+options["nFolds"] = 5
+options["returnModel"] = True
+el_model_train = fm.cross_validated_elastic_net_regression(train, "SP500 Total Return", config.factorName, options)
+
+#Descripcion de los datos
+#el intervalo del ratio L1 es de 93.78% mejor alpha es de 1.7597  (es un ratio muy alto)
+#elimina los factores de high yield, inflation protection como no relevantes
+#ademas de que considera el factor mas relevante el de world equities y despues al de currency protection
+#el factor de 10 year us treasury no es tan relevante
+
+
+#funcion para la validacion cruzada de la regresion lasso
+def cross_validated_lasso_regression(data, dependentVar, factorNames, options):
+    '''cross_validated_lasso_regression takes in a dataset and returns the factor loadings using lasso regression 
+    and cross validating the choice of lambda
+    INPUTS:
+        data: pandas df, data matrix, should constain the date column and all of the factorNames columns
+        dependentVar: string, name of dependent variable
+        factorNames: list, elements should be strings, names of the independent variables
+        options: dictionary, should constain at least two elements, timeperiod, and date
+            timeperiod: string, if == all, means use entire dataframe, otherwise filter the df on this value
+            date: name of datecol
+            returnModel: boolean, if true, returns model
+            printLoadings: boolean, if true, prints the coeficients
+
+            maxLambda: float, max lambda value passed
+            nLambdas: int, number of lambda values to try
+            randomState: integer, sets random state seed
+            nFolds: number of folds
+            NOTE: SKLearn calles Lambda Alpha.  Also, it uses a scaled version of LASSO argument, so here I scale when converting lambda to alpha
+    Outputs:
+        reg: regression object from sikitlearn
+        also prints what was desired
+    '''
+    #Test timeperiod
+    if(options['timeperiod'] == 'all'):
+        newData = data.copy()
+    else:
+        newData = data.copy()
+        newData = newData.query(options['timeperiod'])
+
+    #Do CV Lasso
+    alphaMax = options['maxLambda'] / (2*newData.shape[0])
+    print('alphaMax = ' + str(alphaMax))
+    alphas = np.linspace(1e-6, alphaMax, options['nLambdas'])
+    if(options['randomState'] == 'none'):
+        lassoTest = Lasso(fit_intercept=True)
+    else:
+        lassoTest = Lasso(random_state = options['randomState'], fit_intercept=True)
+
+    tuned_parameters = [{'alpha': alphas}]
+
+    clf = GridSearchCV(lassoTest, tuned_parameters, cv=options['nFolds'], refit=True)
+    clf.fit(newData[factorNames],newData[dependentVar])
+    lassoBest = clf.best_estimator_
+    alphaBest = clf.best_params_['alpha']
+    print('Best Alpha')
+    print(clf.best_params_['alpha'])
+
+
+    if (options['printLoadings'] == True):
+        #Now print the results
+        print_timeperiod(newData, dependentVar, options)
+        print('best lambda = ' + str(alphaBest*2*newData.shape[0]))
+        #Now print the factor loadings
+        display_factor_loadings(lassoBest.intercept_, lassoBest.coef_, factorNames, options)
+
+    if(options['returnModel']):
+        return lassoBest
+    
+
+###############################################################################
+                 """ Regresiones con limitaciones """
+#regresion con max de variables no igual a cero de 2
+options = fm.create_options_best_subset()
+options["max_vars"] = 2
+options["name_of_reg"] #mejor subconjunto con maxvars de 2
+fm.best_subset_regresion(train, "SP500 Total Returns", config.factorName, options)
+
+#Descripcion
+"""
+intercepto 0.000
+world equities 0.992
+10 year us treasury 0.000
+high yield 0.000
+inflation protection 0.000
+currency protection 0.324
+"""
+
+#Se puede ver que en este caso las unicas cargas de factores significativas en esta regresion
+#con limitaciones son world equities y currency protection
+#ademas de lo anterior el resultado nos da el mejor subconjunto del modelo de regression 
+#por lo que solo hay dos cargas de factores diferentes de cero
+    
+#regresion con max de variables no igual a cero de 3
+options = fm.create_options_best_subset()
+options["max_vars"] = 3
+options["name_of_reg"] #mejor subconjunto con maxvars de 3
+fm.best_subset_regresion(train, "SP500 Total Returns", config.factorName, options)    
+    
+#Descripcion
+
+"""
+intercepto -0.000
+world equities 1.009
+currency protection 0.363
+10 years of terasury 0.204
+"""
+#Se puede ver que en este caso las unicas cargas de factores significativas en esta regresion
+#con limitaciones son world equities, currency protection y 10 years treasury
+#ademas de lo anterior el resultado nos da el mejor subconjunto del modelo de regression 
+#por lo que solo hay dos cargas de factores diferentes de cero
+
+###############################################################################
+
+#Usando la CVXPY library para craer la funcion del mejor subconjunto, 
+#sirve para resolver problemas de optimizacion, para encontrar el mejor subconjunto
+
+
+def best_subset(x,y,1_0):
+    M = 1000
+    n_factor = x.shape[1]
+    z= cp.variable(n_factor, boolean = True) #variable
+    beta = cp.Variable(n_factor)  #variable
+    alpha = cp.Variable(1) #intercepto definido como variable
+    
+    def MIP_obj(x,y,b,a):
+        return cp.norm(y-cp.matmul(x,b)- a,2)
+    
+    best_subset_prob = cp.Problem(cp.Minimize(MIP_obj(x,y,beta,alpha)), #se definen los constrains / limitantes del problema de optimizacion
+                                  [cp.sum(z)<=1_0, beta+M*z>=0, M*z>=beta])  
+    best_subset_prob.solve(solver="ECOS_BB") #se usa solver para optimizar la ecuacion de la matriz
+    return alpha.value, beta.value    #que nos regrese los valores alfa y beta, siendo los valores de la solucion
+
+    
+""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+##############################################################################
+
+    """ Pronostico para determinar los retornos esperados futuros """
+
+#Se tienen 5 facatores para determinar los retornos esperados anualizados 
+
+"""
+World equities 5%
+Treasury Bonds 2%
+High Yield Bonds 5%
+Inflation Protection -3%
+Currency protection 0%
+"""
+
+#Testeo de diferetes modelos
+#En el siguiente codigo se testean diferentes modelos para ver cual es el que mejor se ajusta
+#y que variables son mas significativas con los diferentes modelos
+
+models = [ols_model_train, lasso_model_train, el_model_train, best_subset_prob]
+comparisson = pd.DataFrame(np.zeros((4,7)), columns=["Intercept"]+ config.factorName + 
+                           ["Implied Expected Return SP500 (Anual)"])
+expected_returns = pd.DataFrame(np.array([[.08/12, .02/12, .05/12, -.003/12, 0/12]]), columns = config.factorName)
+
+for i in range(len(models)):
+    model = models[i]
+    comparison.loc[i, "intercept"] = model.intercept
+    comparison.loc[i, config.factorName] = model.coef_
+    #se multiplica por 12 porque se usan datos en frecuencia mensual y asi se pasa a anual
+    comparison.loc[i, "Implied Expected Return SP500"] = 12 * model.predict(expected_returns) #se usa para anualizar los retornos
+    
+comprarison.index = ["OLS", "LASSO", "Elastic  Net", "Best Subset"]
+
+comparison
+
+"""
+se obtiene una matriz donde se obtiene diferentes modelos y cada modelo la carga de los diversos factores
+
+Todos tienen un intercepto de cero.
+
+En OLS, world equities, currency protection son los mas significativos pero tambien en menor medida 10 years treasury
+inlfation protection y high yield son poco signicativos, da el rentorno esperado mas bajo de los modelos con 7.8%
+
+En Lasso world equities, currency protection son mas significativos aunque en menor medida que en OLS normal, los
+menos significativos son 10 year us treasuries, high yield y inflation protection, 
+se tiene un retorno esperado de 8.2%
+
+En Elastic Net world equities, currency protection son ligeramente menos significativas que en lasso pero son
+los factores mas significativas  en este modelo, los demas no lo son se tiene un retorno igual a Lasso de 8.2%
+
+En el modelo best-subset World equities es significativo y tiene mayor significancia en este modelo que en los demas
+al igual que currency protection, mientras que las demas variables son cero exceptuando 10 year us treasuries que tiene una significancia muy baja
+menor que en el modelo OLS peor mayor que Lasso y Elastic Net en este modelo se espera un retorno de 8%
+
+"""
+
+predictions 
+
+"""
+Los valores de R cuadrada de cada modelo son:
+    
+OLS 0.856
+Lasso 0.858
+Elastic Net 0.858
+Best Subset 0.862
+
+Por lo que el modelo que mejor ajusta es el de Best subset, al haber un modelo con menos dimensiones
+es mas facil encontrar factores que sean significativos 
+"""
+
+
+
+
+
